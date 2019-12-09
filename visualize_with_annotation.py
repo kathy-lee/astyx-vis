@@ -1,15 +1,12 @@
 import json
-import math
-import os
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
-from mpl_toolkits import mplot3d
 import matplotlib.animation as animation
 import matplotlib.image as img
 import matplotlib.gridspec as gridspec
 import matplotlib.patches as patches
 import os
+import pandas as pd
 
 
 def isFloat(str_val):
@@ -39,6 +36,15 @@ def read_file(filename, filetype):
     pa = np.array(p)
     return pa
 
+def read_yaw(filename):
+    p = []
+    with open(filename) as f:
+        for line in f:
+            line = line.rstrip()
+            if line:
+                line_str = line.split()
+                p.append(float(line_str[14]))
+    return p
 
 def plot_3D_animation():
     fig = plt.figure()
@@ -120,6 +126,8 @@ def plot_box_on_pcl(ax, points, classId):
 
 def plot_box_on_image(ax, points, classId):
     # assume the shape of points:(8,3)
+
+
     a = np.zeros((2, 5))
     a[0, 0:4] = points[0, 0:4]
     a[0, 4] = points[0, 0]
@@ -163,10 +171,21 @@ def plot_box_on_image(ax, points, classId):
 
     return 0
 
+def radarcoordToCameracoordYaw(quat,frame_calib):
+    radar_quat_to_mat=quaternionToRotationMatrix(quat)
+    radar_to_camera_mat=np.array(frame_calib.tr_velodyne_to_cam)
+    radar_to_camera_mat=radar_to_camera_mat[:,0:3]
+    rot_mat=np.dot(radar_to_camera_mat,radar_quat_to_mat)
+    rot_quat=rotMat2quatern(rot_mat)
+    angles=qaut_to_angle(rot_quat)
+    return angles
+
 
 def plot_2D_annotation(n):
     gs = gridspec.GridSpec(2, 2)
     fig = plt.figure()
+    plt.get_current_fig_manager().full_screen_toggle()
+
 
     # plot radar pcl on x-y dimension
     ax = fig.add_subplot(gs[0, 0])
@@ -177,7 +196,7 @@ def plot_2D_annotation(n):
     ax.set_xlim(0, 100)  # (-100, 100)
     ax.set_ylim(-100, 100)  # (0, 100)
 
-    # objects = get_objects(n)
+    # get ground truth objects
     groundtruth_path = groundtruth_data_dir + str(n).zfill(6) + '.json'
     with open(groundtruth_path, mode='r') as file:
         data = json.load(file)
@@ -185,7 +204,11 @@ def plot_2D_annotation(n):
     objects = []
     classids = []
     bbox = np.zeros((8, 3))
-    for p in objects_info:
+
+    kitti_path = root_dir + 'kitti_format_label/'+ str(n).zfill(6) + '.txt'
+    yaw_list = read_yaw(kitti_path)
+
+    for p,yaw in zip(objects_info,yaw_list):
         center = np.array(p['center3d'])
         dimension = np.array(p['dimension3d'])
         orientation = np.array(p['orientation_quat'])
@@ -199,15 +222,35 @@ def plot_2D_annotation(n):
         bbox[6, :] = np.array([center[0] + dimension[0] / 2, center[1] - dimension[1], center[2] - dimension[2]])
         bbox[7, :] = np.array([center[0] - dimension[0] / 2, center[1] - dimension[1], center[2] - dimension[2]])
         orientation_matrix = quat_to_rotation(orientation)
-        bbox = np.dot(orientation_matrix, np.transpose(bbox))
-        bbox = np.transpose(bbox)
+        #bbox = np.dot(orientation_matrix, np.transpose(bbox))
+        #bbox = np.transpose(bbox)
+
+
+        t = yaw
+        c = np.cos(t)
+        s = np.sin(t)
+        R1 = np.array([[c, 0, s], [0, 1, 0], [-s, 0, c]])
+        #bbox = np.dot(R1,np.transpose(bbox))
+        #bbox = np.transpose(bbox)
+        w = dimension[0]
+        l = dimension[1]
+        h = dimension[2]
+        x_corners = [l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2, -l / 2, -l / 2]
+        y_corners = [0, 0, 0, 0, -h, -h, -h, -h]
+        z_corners = [w / 2, -w / 2, -w / 2, w / 2, w / 2, -w / 2, -w / 2, w / 2]
+        # rotate and translate 3d bounding box
+        corners_3d = np.dot(R, np.vstack([x_corners, y_corners, z_corners]))
+        # print corners_3d.shape
+        corners_3d[0, :] = corners_3d[0, :] + center[0]
+        corners_3d[1, :] = corners_3d[1, :] + center[1] + h/2
+        corners_3d[2, :] = corners_3d[2, :] + center[2]
+
         objects.append(bbox)
     print(len(objects))
 
     # add annotations on radar pcl plot
     for obj, id in zip(objects, classids):
         plot_box_on_pcl(ax, obj, id)
-    print('radar plot finished!')
 
     # read calibration file for tranformations of annotations
     calib_path = calib_dir + str(n).zfill(6) + '.json'
@@ -231,30 +274,38 @@ def plot_2D_annotation(n):
 
     # add annotations on lidar pcl plot
     for obj, id in zip(objects, classids):
-        obj = np.dot(T_toLidar[0:3, 0:3], np.transpose(obj))
+        obj_lidar = np.dot(T_toLidar[0:3, 0:3], np.transpose(obj))
         T = T_toLidar[0:3, 3]
-        obj = obj + T[:, np.newaxis]
-        obj = np.transpose(obj)
+        obj_lidar = obj_lidar + T[:, np.newaxis]
+        obj_lidar = np.transpose(obj_lidar)
         # obj[:,[0, 1]] = obj[:,[1, 0]]
-        plot_box_on_pcl(ax, obj, id)
-    print('lidar plot finished!')
+        plot_box_on_pcl(ax, obj_lidar, id)
 
     # plot camera image
     ax = fig.add_subplot(gs[1, :])
     image_path = camera_data_dir + str(n).zfill(6) + '.jpg'
     print(image_path)
     image = img.imread(image_path)
-    # frames_camera = ax.imshow(image)
+    frames_camera = ax.imshow(image)
     title3 = ax.set_title('Camera Image at time={}'.format(n))
 
     # add annotations on camera image
-    for obj2, id2 in zip(objects, classids):
-        tmp2 = np.dot(T_toCamera[0:3, 0:3], np.transpose(obj2))
+    for obj, id in zip(objects, classids):
+        obj_camera = np.dot(T_toCamera[0:3, 0:3], np.transpose(obj))
         T = T_toCamera[0:3, 3]
-        tmp2 = tmp2 + T[:, np.newaxis]
-        tmp2 = np.dot(K, tmp2)
-        tmp2 = np.delete(tmp2, 2, 0)
-        plot_box_on_image(ax, tmp2, id2)
+        obj_camera = obj_camera + T[:, np.newaxis]
+
+        #
+        # pts_3d_extend = np.hstack((obj, np.ones((8,1))))
+        # pts_3d_extend = np.transpose(pts_3d_extend)
+        # # print(('pts_3d_extend shape: ', pts_3d_extend.shape))
+        # obj_camera = np.dot(T_toCamera,pts_3d_extend)  # nx3
+
+        obj_image = np.dot(K, obj_camera)
+
+        obj_image = obj_image/obj_image[2:,]
+        obj_image = np.delete(obj_image, 2, 0)
+        plot_box_on_image(ax, obj_image, id)
 
     plt.show()
     return 0
@@ -269,6 +320,7 @@ camera_data_dir = root_dir + 'camera_front/'
 
 files = os.listdir(radar_data_dir)
 files.sort()
+# plot the first two files
 n = 0
 files = files[n:n + 5]
 radar_pcl_set = []
