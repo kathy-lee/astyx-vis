@@ -36,6 +36,7 @@ def read_file(filename, filetype):
     pa = np.array(p)
     return pa
 
+
 def read_yaw(filename):
     p = []
     with open(filename) as f:
@@ -45,6 +46,7 @@ def read_yaw(filename):
                 line_str = line.split()
                 p.append(float(line_str[14]))
     return p
+
 
 def plot_3D_animation():
     fig = plt.figure()
@@ -127,7 +129,6 @@ def plot_box_on_pcl(ax, points, classId):
 def plot_box_on_image(ax, points, classId):
     # assume the shape of points:(8,3)
 
-
     a = np.zeros((2, 5))
     a[0, 0:4] = points[0, 0:4]
     a[0, 4] = points[0, 0]
@@ -171,13 +172,14 @@ def plot_box_on_image(ax, points, classId):
 
     return 0
 
-def radarcoordToCameracoordYaw(quat,frame_calib):
-    radar_quat_to_mat=quaternionToRotationMatrix(quat)
-    radar_to_camera_mat=np.array(frame_calib.tr_velodyne_to_cam)
-    radar_to_camera_mat=radar_to_camera_mat[:,0:3]
-    rot_mat=np.dot(radar_to_camera_mat,radar_quat_to_mat)
-    rot_quat=rotMat2quatern(rot_mat)
-    angles=qaut_to_angle(rot_quat)
+
+def radarcoordToCameracoordYaw(quat, frame_calib):
+    radar_quat_to_mat = quaternionToRotationMatrix(quat)
+    radar_to_camera_mat = np.array(frame_calib.tr_velodyne_to_cam)
+    radar_to_camera_mat = radar_to_camera_mat[:, 0:3]
+    rot_mat = np.dot(radar_to_camera_mat, radar_quat_to_mat)
+    rot_quat = rotMat2quatern(rot_mat)
+    angles = qaut_to_angle(rot_quat)
     return angles
 
 
@@ -185,7 +187,6 @@ def plot_2D_annotation(n):
     gs = gridspec.GridSpec(2, 2)
     fig = plt.figure()
     plt.get_current_fig_manager().full_screen_toggle()
-
 
     # plot radar pcl on x-y dimension
     ax = fig.add_subplot(gs[0, 0])
@@ -205,53 +206,6 @@ def plot_2D_annotation(n):
     classids = []
     bbox = np.zeros((8, 3))
 
-    kitti_path = root_dir + 'kitti_format_label/'+ str(n).zfill(6) + '.txt'
-    yaw_list = read_yaw(kitti_path)
-
-    for p,yaw in zip(objects_info,yaw_list):
-        center = np.array(p['center3d'])
-        dimension = np.array(p['dimension3d'])
-        orientation = np.array(p['orientation_quat'])
-        classids.append(p['classname'])
-        bbox[0, :] = np.array([center[0] - dimension[0] / 2, center[1] + dimension[1], center[2] + dimension[2]])
-        bbox[1, :] = np.array([center[0] + dimension[0] / 2, center[1] + dimension[1], center[2] + dimension[2]])
-        bbox[2, :] = np.array([center[0] + dimension[0] / 2, center[1] - dimension[1], center[2] + dimension[2]])
-        bbox[3, :] = np.array([center[0] - dimension[0] / 2, center[1] - dimension[1], center[2] + dimension[2]])
-        bbox[4, :] = np.array([center[0] - dimension[0] / 2, center[1] + dimension[1], center[2] - dimension[2]])
-        bbox[5, :] = np.array([center[0] + dimension[0] / 2, center[1] + dimension[1], center[2] - dimension[2]])
-        bbox[6, :] = np.array([center[0] + dimension[0] / 2, center[1] - dimension[1], center[2] - dimension[2]])
-        bbox[7, :] = np.array([center[0] - dimension[0] / 2, center[1] - dimension[1], center[2] - dimension[2]])
-        orientation_matrix = quat_to_rotation(orientation)
-        #bbox = np.dot(orientation_matrix, np.transpose(bbox))
-        #bbox = np.transpose(bbox)
-
-
-        t = yaw
-        c = np.cos(t)
-        s = np.sin(t)
-        R1 = np.array([[c, 0, s], [0, 1, 0], [-s, 0, c]])
-        #bbox = np.dot(R1,np.transpose(bbox))
-        #bbox = np.transpose(bbox)
-        w = dimension[0]
-        l = dimension[1]
-        h = dimension[2]
-        x_corners = [l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2, -l / 2, -l / 2]
-        y_corners = [0, 0, 0, 0, -h, -h, -h, -h]
-        z_corners = [w / 2, -w / 2, -w / 2, w / 2, w / 2, -w / 2, -w / 2, w / 2]
-        # rotate and translate 3d bounding box
-        corners_3d = np.dot(R, np.vstack([x_corners, y_corners, z_corners]))
-        # print corners_3d.shape
-        corners_3d[0, :] = corners_3d[0, :] + center[0]
-        corners_3d[1, :] = corners_3d[1, :] + center[1] + h/2
-        corners_3d[2, :] = corners_3d[2, :] + center[2]
-
-        objects.append(bbox)
-    print(len(objects))
-
-    # add annotations on radar pcl plot
-    for obj, id in zip(objects, classids):
-        plot_box_on_pcl(ax, obj, id)
-
     # read calibration file for tranformations of annotations
     calib_path = calib_dir + str(n).zfill(6) + '.json'
     with open(calib_path, mode='r') as file:
@@ -262,6 +216,37 @@ def plot_2D_annotation(n):
 
     T_toLidar = invTrans(T_fromLidar)
     T_toCamera = invTrans(T_fromCamera)
+
+
+    # kitti_path = root_dir + 'kitti_format_label/' + str(n).zfill(6) + '.txt'
+    # yaw_list = read_yaw(kitti_path)
+
+    for p in objects_info:
+        center = np.array(p['center3d'])
+        dimension = np.array(p['dimension3d'])
+        orientation = np.array(p['orientation_quat'])
+        classids.append(p['classname'])
+
+        bbox[0, :] = np.array([center[0] - dimension[0] / 2, center[1] + dimension[1] / 2, center[2] + dimension[2] / 2])
+        bbox[1, :] = np.array([center[0] + dimension[0] / 2, center[1] + dimension[1] / 2, center[2] + dimension[2] / 2])
+        bbox[2, :] = np.array([center[0] + dimension[0] / 2, center[1] - dimension[1] / 2, center[2] + dimension[2] / 2])
+        bbox[3, :] = np.array([center[0] - dimension[0] / 2, center[1] - dimension[1] / 2, center[2] + dimension[2] / 2])
+        bbox[4, :] = np.array([center[0] - dimension[0] / 2, center[1] + dimension[1] / 2, center[2] - dimension[2] / 2])
+        bbox[5, :] = np.array([center[0] + dimension[0] / 2, center[1] + dimension[1] / 2, center[2] - dimension[2] / 2])
+        bbox[6, :] = np.array([center[0] + dimension[0] / 2, center[1] - dimension[1] / 2, center[2] - dimension[2] / 2])
+        bbox[7, :] = np.array([center[0] - dimension[0] / 2, center[1] - dimension[1] / 2, center[2] - dimension[2] / 2])
+        orientation_matrix = quat_to_rotation(orientation)
+        tempmatrix = np.dot(T_toCamera[:,0:3],orientation_matrix)
+        bbox = np.dot(orientation_matrix, np.transpose(bbox))
+        bbox = np.transpose(bbox)
+        objects.append(bbox)
+    print(len(objects))
+
+    # add annotations on radar pcl plot
+    for obj, id in zip(objects, classids):
+        plot_box_on_pcl(ax, obj, id)
+
+
 
     # plot lidar pcl on x-y dimension
     ax = fig.add_subplot(gs[0, 1])
@@ -295,6 +280,7 @@ def plot_2D_annotation(n):
         T = T_toCamera[0:3, 3]
         obj_camera = obj_camera + T[:, np.newaxis]
 
+        tempmatrix = np.dot(T_toCamera[:,0:3],orientation_matrix)
         #
         # pts_3d_extend = np.hstack((obj, np.ones((8,1))))
         # pts_3d_extend = np.transpose(pts_3d_extend)
@@ -303,7 +289,7 @@ def plot_2D_annotation(n):
 
         obj_image = np.dot(K, obj_camera)
 
-        obj_image = obj_image/obj_image[2:,]
+        obj_image = obj_image / obj_image[2:, ]
         obj_image = np.delete(obj_image, 2, 0)
         plot_box_on_image(ax, obj_image, id)
 
