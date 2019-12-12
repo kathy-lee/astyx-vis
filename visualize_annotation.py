@@ -66,7 +66,8 @@ def quat_to_rotation(quat):
          [q[1, 2] - q[3, 0], 1.0 - q[1, 1] - q[3, 3], q[2, 3] + q[1, 0]],
          [q[1, 3] + q[2, 0], q[2, 3] - q[1, 0], 1.0 - q[1, 1] - q[2, 2]]],
         dtype=q.dtype)
-    # # test if it is truly a roation matrix
+    rot_matrix = np.transpose(rot_matrix)
+    # # test if it is truly a rotation matrix
     # d = np.linalg.det(rotation)
     # t = np.transpose(rotation)
     # o = np.dot(rotation, t)
@@ -253,7 +254,7 @@ files = os.listdir(radar_data_dir)
 files.sort()
 # plot the first two files
 n = 0
-files = files[n:n + 2]
+files = files[n:n + 15]
 radar_pcl_set = []
 lidar_pcl_set = []
 
