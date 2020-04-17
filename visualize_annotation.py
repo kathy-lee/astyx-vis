@@ -1,8 +1,12 @@
+import getopt
 import json
+import sys
+
 import numpy as np
 import random
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+import math
 import os
 from PIL import Image, ImageDraw
 
@@ -110,6 +114,13 @@ def get_objects(filename):
         z_corners = [h / 2, h / 2, h / 2, h / 2, -h / 2, -h / 2, -h / 2, -h / 2]
         # rotate and translate 3d bounding box
         R = quat_to_rotation(orientation)
+        ##########################
+        yaw = qaut_to_angle(orientation)
+        rotMat = np.array([
+            [np.cos(yaw), -np.sin(yaw), 0.0],
+            [np.sin(yaw), np.cos(yaw), 0.0],
+            [0.0, 0.0, 1.0]])
+        ##########################
         # case 1: rotate + translate
         bbox = np.vstack([x_corners, y_corners, z_corners])
         bbox = np.dot(R, bbox)
@@ -123,6 +134,16 @@ def get_objects(filename):
         objects.append(bbox)
     return objects, classids
 
+def qaut_to_angle(quat):
+    w=quat[0]
+    x=quat[1]
+    y=quat[2]
+    z=quat[3]
+
+    rol = math.atan2(2*(w*x+y*z),1-2*(x*x+y*y))#the rol is the yaw angle!
+    pith = math.asin(2*(w*y-x*z))
+    yaw = math.atan2(2*(w*z+x*y),1-2*(z*z+y*y))
+    return rol
 
 def plot_2Dbox_on_pcl(ax, points, classid):
     for k in range(0, 3):
@@ -192,8 +213,8 @@ def plot_annotation(filename):
     objects, classids = get_objects(filename)
 
     gs = gridspec.GridSpec(2, 2)
-    fig = plt.figure()
-    plt.get_current_fig_manager().full_screen_toggle()
+    # fig = plt.figure()
+    # plt.get_current_fig_manager().full_screen_toggle()
 
     # plot radar pcl on x-y dimension
     ax = fig.add_subplot(gs[0, 0])
@@ -237,28 +258,64 @@ def plot_annotation(filename):
     for obj, classid, n in zip(objects_2Dimage, classids, range(0, len(objects_2Dimage))):
         plot_3Dbox_on_image(box_draw, obj, classid, colorlist[n])
     ax.imshow(camera_image)
-
-    plt.show()
+    # fig.canvas.draw()
+    # plt.show()
     return 0
 
 
-# main
 root_dir = os.environ['AOD_HOME']
 groundtruth_data_dir = root_dir + 'groundtruth_obj3d/'
 calib_dir = root_dir + 'calibration/'
 radar_data_dir = root_dir + 'radar_6455/'
 lidar_data_dir = root_dir + 'lidar_vlp16/'
 camera_data_dir = root_dir + 'camera_front/'
+fig = plt.figure()
+cursor = 0
 
-files = os.listdir(radar_data_dir)
-files.sort()
-# plot the first two files
-n = 0
-files = files[n:n + 15]
-radar_pcl_set = []
-lidar_pcl_set = []
 
-for file in files:
-    if not os.path.isdir(file):
-        plot_annotation(file)
-        n = n + 1
+def main(argv):
+    start = 0
+    count = 5
+    try:
+        opts, args = getopt.getopt(argv, "hs:n:", ["start=", "count="])
+    except getopt.GetoptError:
+        print
+        'visualize_annotation.py -s <start> -n <count>'
+        sys.exit(2)
+    for opt, arg in opts:
+        if opt == '-h':
+            print
+            'visualize_annotation.py -s <start> -n <count>'
+            sys.exit()
+        elif opt in ("-s", "--start"):
+            start = int(arg)
+        elif opt in ("-n", "--count"):
+            count = int(arg)
+    files = os.listdir(radar_data_dir)
+    files.sort()
+    print(f'start: {start}, count: {count}')
+    files = files[start: start+count]
+    global cursor
+    cursor = 0
+    plot_annotation(files[0])
+    fig.canvas.draw()
+
+    def press(event):
+        global cursor
+        if event.key == 'escape':
+            sys.exit(0)
+        if event.key == 'left' or event.key == 'up':
+            cursor = cursor - 1 if cursor > 0 else 0
+        elif event.key == 'right' or event.key == 'down' or event.key == ' ':
+            cursor = cursor + 1 if cursor < len(files) - 1 else len(files) - 1
+        print(f'{event.key} pressed, show {files[cursor]}')
+        sys.stdout.flush()
+        plot_annotation(files[cursor])
+        fig.canvas.draw()
+    fig.canvas.mpl_connect('key_press_event', press)
+    plt.get_current_fig_manager().full_screen_toggle()
+    plt.show()
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
