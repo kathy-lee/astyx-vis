@@ -16,9 +16,21 @@ A visualization tool for Astyx multi-sensor data.
     export AOD_HOME=/path/to/astyx/data/root/dir/
     ```
 3. **Run scripts**
-4. **Control annotation results with keyboard**
+    
+    For annotation:
+    ```
+    python visualization_annotation.py -s START -n COUNT
+    ```
+    where `START` is the first frame ID index to start displaying, `COUNT` is the number of frames to display.  
+
+    For animation:
+    ```
+    python visualization_animation.py
+    ```
+4. **Keyboard Control (ONLY for annotation)**
 
     `left` / `up`: previous data frame
+    
     `right` / `down`: next data frame 
 
 ## Sample results
