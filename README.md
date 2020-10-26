@@ -19,13 +19,13 @@ A visualization tool for Astyx multi-sensor data.
     
     For annotation:
     ```
-    python visualization_annotation.py -s START -n COUNT
+    python visualize_annotation.py -s START -n COUNT
     ```
     where `START` is the first frame ID index to start displaying, `COUNT` is the number of frames to display.  
 
     For animation:
     ```
-    python visualization_animation.py
+    python visualize_animation.py
     ```
 4. **Keyboard Control (ONLY for annotation)**
 
